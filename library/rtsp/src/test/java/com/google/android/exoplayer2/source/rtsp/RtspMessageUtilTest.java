@@ -17,6 +17,7 @@
 package com.google.android.exoplayer2.source.rtsp;
 
 import static com.google.common.truth.Truth.assertThat;
+import static org.junit.Assert.assertThrows;
 
 import android.net.Uri;
 import androidx.annotation.Nullable;
@@ -147,10 +148,12 @@ public final class RtspMessageUtilTest {
 
     assertThat(response.status).isEqualTo(401);
 
-    assertThat(headersMap.keySet()).containsExactly("cseq", "www-authenticate").inOrder();
-    assertThat(headersMap).valuesForKey("cseq").containsExactly("3");
+    assertThat(headersMap.keySet())
+        .containsExactly(RtspHeaders.CSEQ, RtspHeaders.WWW_AUTHENTICATE)
+        .inOrder();
+    assertThat(headersMap).valuesForKey(RtspHeaders.CSEQ).containsExactly("3");
     assertThat(headersMap)
-        .valuesForKey("www-authenticate")
+        .valuesForKey(RtspHeaders.WWW_AUTHENTICATE)
         .containsExactly("BASIC realm=\"wow\"", "DIGEST realm=\"wow\", nonce=\"nonce\"")
         .inOrder();
 
@@ -221,14 +224,14 @@ public final class RtspMessageUtilTest {
     List<String> expectedLines =
         Arrays.asList(
             "SETUP rtsp://127.0.0.1/test.mkv/track1 RTSP/1.0",
-            "cseq: 4",
-            "transport: RTP/AVP;unicast;client_port=65458-65459",
+            "CSeq: 4",
+            "Transport: RTP/AVP;unicast;client_port=65458-65459",
             "",
             "");
     String expectedRtspMessage =
         "SETUP rtsp://127.0.0.1/test.mkv/track1 RTSP/1.0\r\n"
-            + "cseq: 4\r\n"
-            + "transport: RTP/AVP;unicast;client_port=65458-65459\r\n"
+            + "CSeq: 4\r\n"
+            + "Transport: RTP/AVP;unicast;client_port=65458-65459\r\n"
             + "\r\n";
 
     assertThat(messageLines).isEqualTo(expectedLines);
@@ -248,21 +251,20 @@ public final class RtspMessageUtilTest {
                         "4",
                         RtspHeaders.TRANSPORT,
                         "RTP/AVP;unicast;client_port=65458-65459;server_port=5354-5355"))
-                .build(),
-            /* messageBody= */ "");
+                .build());
     List<String> messageLines = RtspMessageUtil.serializeResponse(response);
 
     List<String> expectedLines =
         Arrays.asList(
             "RTSP/1.0 200 OK",
-            "cseq: 4",
-            "transport: RTP/AVP;unicast;client_port=65458-65459;server_port=5354-5355",
+            "CSeq: 4",
+            "Transport: RTP/AVP;unicast;client_port=65458-65459;server_port=5354-5355",
             "",
             "");
     String expectedRtspMessage =
         "RTSP/1.0 200 OK\r\n"
-            + "cseq: 4\r\n"
-            + "transport: RTP/AVP;unicast;client_port=65458-65459;server_port=5354-5355\r\n"
+            + "CSeq: 4\r\n"
+            + "Transport: RTP/AVP;unicast;client_port=65458-65459;server_port=5354-5355\r\n"
             + "\r\n";
     assertThat(messageLines).isEqualTo(expectedLines);
     assertThat(RtspMessageUtil.convertMessageToByteArray(messageLines))
@@ -297,10 +299,10 @@ public final class RtspMessageUtilTest {
     List<String> expectedLines =
         Arrays.asList(
             "RTSP/1.0 200 OK",
-            "cseq: 4",
-            "content-base: rtsp://127.0.0.1/test.mkv/",
-            "content-type: application/sdp",
-            "content-length: 707",
+            "CSeq: 4",
+            "Content-Base: rtsp://127.0.0.1/test.mkv/",
+            "Content-Type: application/sdp",
+            "Content-Length: 707",
             "",
             "v=0\r\n"
                 + "o=- 1606776316530225 1 IN IP4 192.168.2.176\r\n"
@@ -314,10 +316,10 @@ public final class RtspMessageUtilTest {
 
     String expectedRtspMessage =
         "RTSP/1.0 200 OK\r\n"
-            + "cseq: 4\r\n"
-            + "content-base: rtsp://127.0.0.1/test.mkv/\r\n"
-            + "content-type: application/sdp\r\n"
-            + "content-length: 707\r\n"
+            + "CSeq: 4\r\n"
+            + "Content-Base: rtsp://127.0.0.1/test.mkv/\r\n"
+            + "Content-Type: application/sdp\r\n"
+            + "Content-Length: 707\r\n"
             + "\r\n"
             + "v=0\r\n"
             + "o=- 1606776316530225 1 IN IP4 192.168.2.176\r\n"
@@ -335,20 +337,83 @@ public final class RtspMessageUtilTest {
   }
 
   @Test
+  public void serialize_requestWithoutCseqHeader_throwsIllegalArgumentException() {
+    RtspRequest request =
+        new RtspRequest(
+            Uri.parse("rtsp://127.0.0.1/test.mkv/track1"),
+            RtspRequest.METHOD_OPTIONS,
+            RtspHeaders.EMPTY,
+            /* messageBody= */ "");
+
+    assertThrows(IllegalArgumentException.class, () -> RtspMessageUtil.serializeRequest(request));
+  }
+
+  @Test
+  public void serialize_responseWithoutCseqHeader_throwsIllegalArgumentException() {
+    RtspResponse response = new RtspResponse(/* status= */ 200, RtspHeaders.EMPTY);
+
+    assertThrows(IllegalArgumentException.class, () -> RtspMessageUtil.serializeResponse(response));
+  }
+
+  @Test
+  public void isRtspResponse_withSuccessfulRtspResponse_returnsTrue() {
+    List<String> responseLines =
+        Arrays.asList(
+            "RTSP/1.0 200 OK",
+            "CSeq: 2",
+            "Public: OPTIONS, DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE, GET_PARAMETER, SET_PARAMETER",
+            "");
+
+    assertThat(RtspMessageUtil.isRtspResponse(responseLines)).isTrue();
+  }
+
+  @Test
+  public void isRtspResponse_withUnsuccessfulRtspResponse_returnsTrue() {
+    List<String> responseLines = Arrays.asList("RTSP/1.0 405 Method Not Allowed", "CSeq: 2", "");
+
+    assertThat(RtspMessageUtil.isRtspResponse(responseLines)).isTrue();
+  }
+
+  @Test
+  public void isRtspResponse_withRtspRequest_returnsFalse() {
+    List<String> requestLines =
+        Arrays.asList("OPTIONS rtsp://localhost:554/foo.bar RTSP/1.0", "CSeq: 2", "");
+
+    assertThat(RtspMessageUtil.isRtspResponse(requestLines)).isFalse();
+  }
+
+  @Test
   public void serialize_failedResponse_succeeds() {
     RtspResponse response =
         new RtspResponse(
-            /* status= */ 454,
-            new RtspHeaders.Builder().add(RtspHeaders.CSEQ, "4").build(),
-            /* messageBody= */ "");
+            /* status= */ 454, new RtspHeaders.Builder().add(RtspHeaders.CSEQ, "4").build());
     List<String> messageLines = RtspMessageUtil.serializeResponse(response);
 
-    List<String> expectedLines = Arrays.asList("RTSP/1.0 454 Session Not Found", "cseq: 4", "", "");
-    String expectedRtspMessage = "RTSP/1.0 454 Session Not Found\r\n" + "cseq: 4\r\n" + "\r\n";
+    List<String> expectedLines = Arrays.asList("RTSP/1.0 454 Session Not Found", "CSeq: 4", "", "");
+    String expectedRtspMessage = "RTSP/1.0 454 Session Not Found\r\n" + "CSeq: 4\r\n" + "\r\n";
 
     assertThat(RtspMessageUtil.serializeResponse(response)).isEqualTo(expectedLines);
     assertThat(RtspMessageUtil.convertMessageToByteArray(messageLines))
         .isEqualTo(expectedRtspMessage.getBytes(RtspMessageChannel.CHARSET));
+  }
+
+  @Test
+  public void parseSessionHeader_withSessionIdContainingSpecialCharacters_succeeds()
+      throws Exception {
+    String sessionHeaderString = "610a63df-9b57.4856_97ac$665f+56e9c04";
+    RtspMessageUtil.RtspSessionHeader sessionHeader =
+        RtspMessageUtil.parseSessionHeader(sessionHeaderString);
+    assertThat(sessionHeader.sessionId).isEqualTo("610a63df-9b57.4856_97ac$665f+56e9c04");
+  }
+
+  @Test
+  public void parseSessionHeader_withSessionIdContainingSpecialCharactersAndTimeout_succeeds()
+      throws Exception {
+    String sessionHeaderString = "610a63df-9b57.4856_97ac$665f+56e9c04;timeout=60";
+    RtspMessageUtil.RtspSessionHeader sessionHeader =
+        RtspMessageUtil.parseSessionHeader(sessionHeaderString);
+    assertThat(sessionHeader.sessionId).isEqualTo("610a63df-9b57.4856_97ac$665f+56e9c04");
+    assertThat(sessionHeader.timeoutMs).isEqualTo(60_000);
   }
 
   @Test
@@ -434,10 +499,10 @@ public final class RtspMessageUtilTest {
   @Test
   public void parseWWWAuthenticateHeader_withBasicAuthentication_succeeds() throws Exception {
     RtspAuthenticationInfo authenticationInfo =
-        RtspMessageUtil.parseWwwAuthenticateHeader("Basic realm=\"WallyWorld\"");
+        RtspMessageUtil.parseWwwAuthenticateHeader("Basic realm=\"Wally - World\"");
     assertThat(authenticationInfo.authenticationMechanism).isEqualTo(RtspAuthenticationInfo.BASIC);
     assertThat(authenticationInfo.nonce).isEmpty();
-    assertThat(authenticationInfo.realm).isEqualTo("WallyWorld");
+    assertThat(authenticationInfo.realm).isEqualTo("Wally - World");
   }
 
   @Test
@@ -445,13 +510,13 @@ public final class RtspMessageUtilTest {
       throws Exception {
     RtspAuthenticationInfo authenticationInfo =
         RtspMessageUtil.parseWwwAuthenticateHeader(
-            "Digest realm=\"testrealm@host.com\", domain=\"host.com\","
+            "Digest realm=\"test-realm@host.com\", domain=\"host.com\","
                 + " nonce=\"dcd98b7102dd2f0e8b11d0f600bfb0c093\", "
                 + " opaque=\"5ccc069c403ebaf9f0171e9517f40e41\"");
 
     assertThat(authenticationInfo.authenticationMechanism).isEqualTo(RtspAuthenticationInfo.DIGEST);
     assertThat(authenticationInfo.nonce).isEqualTo("dcd98b7102dd2f0e8b11d0f600bfb0c093");
-    assertThat(authenticationInfo.realm).isEqualTo("testrealm@host.com");
+    assertThat(authenticationInfo.realm).isEqualTo("test-realm@host.com");
     assertThat(authenticationInfo.opaque).isEmpty();
   }
 
@@ -474,10 +539,10 @@ public final class RtspMessageUtilTest {
   public void parseWWWAuthenticateHeader_withDigestAuthentication_succeeds() throws Exception {
     RtspAuthenticationInfo authenticationInfo =
         RtspMessageUtil.parseWwwAuthenticateHeader(
-            "Digest realm=\"LIVE555 Streaming Media\", nonce=\"0cdfe9719e7373b7d5bb2913e2115f3f\"");
+            "Digest realm=\"RTSP server\", nonce=\"0cdfe9719e7373b7d5bb2913e2115f3f\"");
     assertThat(authenticationInfo.authenticationMechanism).isEqualTo(RtspAuthenticationInfo.DIGEST);
     assertThat(authenticationInfo.nonce).isEqualTo("0cdfe9719e7373b7d5bb2913e2115f3f");
-    assertThat(authenticationInfo.realm).isEqualTo("LIVE555 Streaming Media");
+    assertThat(authenticationInfo.realm).isEqualTo("RTSP server");
     assertThat(authenticationInfo.opaque).isEmpty();
   }
 

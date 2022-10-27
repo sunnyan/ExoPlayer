@@ -26,6 +26,7 @@ import static org.junit.Assert.assertThrows;
 
 import android.net.Uri;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.audio.AacUtil;
 import com.google.android.exoplayer2.util.MimeTypes;
@@ -49,6 +50,174 @@ public class RtspMediaTrackTest {
             .addAttribute(
                 ATTR_FMTP,
                 "96 packetization-mode=1;profile-level-id=64001F;sprop-parameter-sets=Z2QAH6zZQPARabIAAAMACAAAAwGcHjBjLA==,aOvjyyLA")
+            .addAttribute(ATTR_CONTROL, "track1")
+            .build();
+
+    RtpPayloadFormat format = RtspMediaTrack.generatePayloadFormat(mediaDescription);
+    RtpPayloadFormat expectedFormat =
+        new RtpPayloadFormat(
+            new Format.Builder()
+                .setSampleMimeType(MimeTypes.VIDEO_H264)
+                .setAverageBitrate(500_000)
+                .setPixelWidthHeightRatio(1.0f)
+                .setHeight(544)
+                .setWidth(960)
+                .setCodecs("avc1.64001F")
+                .setInitializationData(
+                    ImmutableList.of(
+                        new byte[] {
+                          0, 0, 0, 1, 103, 100, 0, 31, -84, -39, 64, -16, 17, 105, -78, 0, 0, 3, 0,
+                          8, 0, 0, 3, 1, -100, 30, 48, 99, 44
+                        },
+                        new byte[] {0, 0, 0, 1, 104, -21, -29, -53, 34, -64}))
+                .build(),
+            /* rtpPayloadType= */ 96,
+            /* clockRate= */ 90_000,
+            /* fmtpParameters= */ ImmutableMap.of(
+                "packetization-mode", "1",
+                "profile-level-id", "64001F",
+                "sprop-parameter-sets", "Z2QAH6zZQPARabIAAAMACAAAAwGcHjBjLA==,aOvjyyLA"));
+
+    assertThat(format).isEqualTo(expectedFormat);
+  }
+
+  @Test
+  public void generatePayloadFormat_withPcmuMediaDescription_succeeds() {
+
+    MediaDescription mediaDescription =
+        new MediaDescription.Builder(
+                MEDIA_TYPE_AUDIO, /* port= */ 0, RTP_AVP_PROFILE, /* payloadType= */ 0)
+            .setConnection("IN IP4 0.0.0.0")
+            .addAttribute(ATTR_CONTROL, "track2")
+            .build();
+
+    RtpPayloadFormat format = RtspMediaTrack.generatePayloadFormat(mediaDescription);
+    RtpPayloadFormat expectedFormat =
+        new RtpPayloadFormat(
+            new Format.Builder()
+                .setSampleMimeType(MimeTypes.AUDIO_MLAW)
+                .setChannelCount(1)
+                .setSampleRate(8_000)
+                .build(),
+            /* rtpPayloadType= */ 0,
+            /* clockRate= */ 8_000,
+            /* fmtpParameters= */ ImmutableMap.of());
+
+    assertThat(format).isEqualTo(expectedFormat);
+  }
+
+  @Test
+  public void generatePayloadFormat_withPcmaMediaDescription_succeeds() {
+    // m=audio 0 RTP/AVP 0
+    // c=IN IP4 0.0.0.0
+    // a=control:track2
+    int pcmaPayloadType = 8;
+    int pcmaClockRate = 8_000;
+
+    MediaDescription mediaDescription =
+        new MediaDescription.Builder(
+                MEDIA_TYPE_AUDIO,
+                /* port= */ 0,
+                RTP_AVP_PROFILE,
+                /* payloadType= */ pcmaPayloadType)
+            .setConnection("IN IP4 0.0.0.0")
+            .addAttribute(ATTR_CONTROL, "track2")
+            .build();
+
+    RtpPayloadFormat format = RtspMediaTrack.generatePayloadFormat(mediaDescription);
+    RtpPayloadFormat expectedFormat =
+        new RtpPayloadFormat(
+            new Format.Builder()
+                .setSampleMimeType(MimeTypes.AUDIO_ALAW)
+                .setChannelCount(1)
+                .setSampleRate(pcmaClockRate)
+                .build(),
+            /* rtpPayloadType= */ pcmaPayloadType,
+            /* clockRate= */ pcmaClockRate,
+            /* fmtpParameters= */ ImmutableMap.of());
+
+    assertThat(format).isEqualTo(expectedFormat);
+  }
+
+  @Test
+  public void generatePayloadFormat_withL16StereoMediaDescription_succeeds() {
+    // m=audio 0 RTP/AVP 0
+    // c=IN IP4 0.0.0.0
+    // a=control:track2
+    int l16StereoPayloadType = 10;
+    int l16StereoClockRate = 44_100;
+
+    MediaDescription mediaDescription =
+        new MediaDescription.Builder(
+                MEDIA_TYPE_AUDIO,
+                /* port= */ 0,
+                RTP_AVP_PROFILE,
+                /* payloadType= */ l16StereoPayloadType)
+            .setConnection("IN IP4 0.0.0.0")
+            .addAttribute(ATTR_CONTROL, "track2")
+            .build();
+
+    RtpPayloadFormat format = RtspMediaTrack.generatePayloadFormat(mediaDescription);
+    RtpPayloadFormat expectedFormat =
+        new RtpPayloadFormat(
+            new Format.Builder()
+                .setSampleMimeType(MimeTypes.AUDIO_RAW)
+                .setChannelCount(2)
+                .setSampleRate(l16StereoClockRate)
+                .setPcmEncoding(C.ENCODING_PCM_16BIT_BIG_ENDIAN)
+                .build(),
+            /* rtpPayloadType= */ l16StereoPayloadType,
+            /* clockRate= */ l16StereoClockRate,
+            /* fmtpParameters= */ ImmutableMap.of());
+
+    assertThat(format).isEqualTo(expectedFormat);
+  }
+
+  @Test
+  public void generatePayloadFormat_withL16MonoMediaDescription_succeeds() {
+    // m=audio 0 RTP/AVP 0
+    // c=IN IP4 0.0.0.0
+    // a=control:track2
+    int l16MonoPayloadType = 11;
+    int l16MonoClockRate = 44_100;
+
+    MediaDescription mediaDescription =
+        new MediaDescription.Builder(
+                MEDIA_TYPE_AUDIO,
+                /* port= */ 0,
+                RTP_AVP_PROFILE,
+                /* payloadType= */ l16MonoPayloadType)
+            .setConnection("IN IP4 0.0.0.0")
+            .addAttribute(ATTR_CONTROL, "track2")
+            .build();
+
+    RtpPayloadFormat format = RtspMediaTrack.generatePayloadFormat(mediaDescription);
+    RtpPayloadFormat expectedFormat =
+        new RtpPayloadFormat(
+            new Format.Builder()
+                .setSampleMimeType(MimeTypes.AUDIO_RAW)
+                .setChannelCount(1)
+                .setSampleRate(l16MonoClockRate)
+                .setPcmEncoding(C.ENCODING_PCM_16BIT_BIG_ENDIAN)
+                .build(),
+            /* rtpPayloadType= */ l16MonoPayloadType,
+            /* clockRate= */ l16MonoClockRate,
+            /* fmtpParameters= */ ImmutableMap.of());
+
+    assertThat(format).isEqualTo(expectedFormat);
+  }
+
+  @Test
+  public void generatePayloadFormat_withFmtpTrailingSemicolon_succeeds() {
+    MediaDescription mediaDescription =
+        new MediaDescription.Builder(
+                MEDIA_TYPE_VIDEO, /* port= */ 0, RTP_AVP_PROFILE, /* payloadType= */ 96)
+            .setConnection("IN IP4 0.0.0.0")
+            .setBitrate(500_000)
+            .addAttribute(ATTR_RTPMAP, "96 H264/90000")
+            .addAttribute(
+                ATTR_FMTP,
+                "96 packetization-mode=1;profile-level-id=64001F;sprop-parameter-sets=Z2QAH6zZQPARabIAAAMACAAAAwGcHjBjLA==,aOvjyyLA;")
             .addAttribute(ATTR_CONTROL, "track1")
             .build();
 
@@ -119,7 +288,7 @@ public class RtspMediaTrackTest {
                 .put("indexlength", "3")
                 .put("indexdeltalength", "3")
                 .put("config", "1208")
-                .build());
+                .buildOrThrow());
 
     assertThat(format).isEqualTo(expectedFormat);
   }

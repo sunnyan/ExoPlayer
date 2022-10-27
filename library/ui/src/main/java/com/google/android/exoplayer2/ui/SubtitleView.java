@@ -16,6 +16,7 @@
  */
 package com.google.android.exoplayer2.ui;
 
+import static java.lang.annotation.ElementType.TYPE_USE;
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
 import android.content.Context;
@@ -31,16 +32,16 @@ import androidx.annotation.Dimension;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.text.Cue;
-import com.google.android.exoplayer2.text.TextOutput;
 import com.google.android.exoplayer2.util.Util;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
+import java.lang.annotation.Target;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 /** A view for displaying subtitle {@link Cue}s. */
-public final class SubtitleView extends FrameLayout implements TextOutput {
+public final class SubtitleView extends FrameLayout {
 
   /**
    * An output for displaying subtitles.
@@ -111,6 +112,7 @@ public final class SubtitleView extends FrameLayout implements TextOutput {
    */
   @Documented
   @Retention(SOURCE)
+  @Target(TYPE_USE)
   @IntDef({VIEW_TYPE_CANVAS, VIEW_TYPE_WEB})
   public @interface ViewType {}
 
@@ -147,11 +149,6 @@ public final class SubtitleView extends FrameLayout implements TextOutput {
     viewType = VIEW_TYPE_CANVAS;
   }
 
-  @Override
-  public void onCues(List<Cue> cues) {
-    setCues(cues);
-  }
-
   /**
    * Sets the cues to be displayed by the view.
    *
@@ -163,7 +160,7 @@ public final class SubtitleView extends FrameLayout implements TextOutput {
   }
 
   /**
-   * Set the type of {@link View} used to display subtitles.
+   * Sets the type of {@link View} used to display subtitles.
    *
    * <p>NOTE: {@link #VIEW_TYPE_WEB} is currently very experimental, and doesn't support most
    * styling and layout properties of {@link Cue}.
@@ -198,7 +195,7 @@ public final class SubtitleView extends FrameLayout implements TextOutput {
   }
 
   /**
-   * Set the text size to a given unit and value.
+   * Sets the text size to a given unit and value.
    *
    * <p>See {@link TypedValue} for the possible dimension units.
    *
@@ -231,8 +228,8 @@ public final class SubtitleView extends FrameLayout implements TextOutput {
   /**
    * Sets the text size to be a fraction of the view's remaining height after its top and bottom
    * padding have been subtracted.
-   * <p>
-   * Equivalent to {@code #setFractionalTextSize(fractionOfHeight, false)}.
+   *
+   * <p>Equivalent to {@code #setFractionalTextSize(fractionOfHeight, false)}.
    *
    * @param fractionOfHeight A fraction between 0 and 1.
    */
@@ -245,9 +242,9 @@ public final class SubtitleView extends FrameLayout implements TextOutput {
    *
    * @param fractionOfHeight A fraction between 0 and 1.
    * @param ignorePadding Set to true if {@code fractionOfHeight} should be interpreted as a
-   *     fraction of this view's height ignoring any top and bottom padding. Set to false if
-   *     {@code fractionOfHeight} should be interpreted as a fraction of this view's remaining
-   *     height after the top and bottom padding has been subtracted.
+   *     fraction of this view's height ignoring any top and bottom padding. Set to false if {@code
+   *     fractionOfHeight} should be interpreted as a fraction of this view's remaining height after
+   *     the top and bottom padding has been subtracted.
    */
   public void setFractionalTextSize(float fractionOfHeight, boolean ignorePadding) {
     setTextSize(
@@ -264,8 +261,8 @@ public final class SubtitleView extends FrameLayout implements TextOutput {
   }
 
   /**
-   * Sets whether styling embedded within the cues should be applied. Enabled by default.
-   * Overrides any setting made with {@link SubtitleView#setApplyEmbeddedFontSizes}.
+   * Sets whether styling embedded within the cues should be applied. Enabled by default. Overrides
+   * any setting made with {@link SubtitleView#setApplyEmbeddedFontSizes}.
    *
    * @param applyEmbeddedStyles Whether styling embedded within the cues should be applied.
    */
@@ -275,8 +272,8 @@ public final class SubtitleView extends FrameLayout implements TextOutput {
   }
 
   /**
-   * Sets whether font sizes embedded within the cues should be applied. Enabled by default.
-   * Only takes effect if {@link SubtitleView#setApplyEmbeddedStyles} is set to true.
+   * Sets whether font sizes embedded within the cues should be applied. Enabled by default. Only
+   * takes effect if {@link SubtitleView#setApplyEmbeddedStyles} is set to true.
    *
    * @param applyEmbeddedFontSizes Whether font sizes embedded within the cues should be applied.
    */
@@ -306,11 +303,11 @@ public final class SubtitleView extends FrameLayout implements TextOutput {
   }
 
   /**
-   * Sets the bottom padding fraction to apply when {@link Cue#line} is {@link Cue#DIMEN_UNSET},
-   * as a fraction of the view's remaining height after its top and bottom padding have been
+   * Sets the bottom padding fraction to apply when {@link Cue#line} is {@link Cue#DIMEN_UNSET}, as
+   * a fraction of the view's remaining height after its top and bottom padding have been
    * subtracted.
-   * <p>
-   * Note that this padding is applied in addition to any standard view padding.
+   *
+   * <p>Note that this padding is applied in addition to any standard view padding.
    *
    * @param bottomPaddingFraction The bottom padding fraction.
    */
@@ -384,5 +381,4 @@ public final class SubtitleView extends FrameLayout implements TextOutput {
     }
     return strippedCue.build();
   }
-
 }
