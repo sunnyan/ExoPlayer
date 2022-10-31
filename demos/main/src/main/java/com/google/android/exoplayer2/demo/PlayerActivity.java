@@ -57,6 +57,7 @@ import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.util.DebugTextViewHelper;
 import com.google.android.exoplayer2.util.ErrorMessageProvider;
 import com.google.android.exoplayer2.util.EventLogger;
+import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.Util;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -67,6 +68,7 @@ import java.util.Map;
 public class PlayerActivity extends AppCompatActivity
     implements OnClickListener, StyledPlayerControlView.VisibilityListener {
 
+  private static final String TAG = PlayerActivity.class.getSimpleName();
   // Saved instance state keys.
 
   private static final String KEY_TRACK_SELECTOR_PARAMETERS = "track_selector_parameters";
@@ -455,6 +457,7 @@ public class PlayerActivity extends AppCompatActivity
       updateButtonVisibility();
       if (trackGroups != lastSeenTrackGroupArray) {
         MappedTrackInfo mappedTrackInfo = trackSelector.getCurrentMappedTrackInfo();
+        Log.d(TAG, "mappedTrackInfo: " + mappedTrackInfo.toString());
         if (mappedTrackInfo != null) {
           if (mappedTrackInfo.getTypeSupport(C.TRACK_TYPE_VIDEO)
               == MappedTrackInfo.RENDERER_SUPPORT_UNSUPPORTED_TRACKS) {
