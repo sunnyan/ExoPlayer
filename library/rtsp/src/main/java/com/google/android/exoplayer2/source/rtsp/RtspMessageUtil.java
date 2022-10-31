@@ -92,20 +92,20 @@ import java.util.regex.Pattern;
   private static final Pattern CONTENT_LENGTH_HEADER_PATTERN =
       Pattern.compile("Content-Length:\\s?(\\d+)", CASE_INSENSITIVE);
 
-  // Session header pattern, see RFC2326 Section 12.37.
+  // Session header pattern, see RFC2326 Sections 3.4 and 12.37.
   private static final Pattern SESSION_HEADER_PATTERN =
-      Pattern.compile("(\\w+)(?:;\\s?timeout=(\\d+))?");
+      Pattern.compile("([\\w$\\-_.+]+)(?:;\\s?timeout=(\\d+))?");
 
   // WWW-Authenticate header pattern, see RFC2068 Sections 14.46 and RFC2069.
   private static final Pattern WWW_AUTHENTICATION_HEADER_DIGEST_PATTERN =
       Pattern.compile(
-          "Digest realm=\"([\\w\\s@.]+)\""
-              + ",\\s?(?:domain=\"(.+)\",\\s?)?"
-              + "nonce=\"(\\w+)\""
-              + "(?:,\\s?opaque=\"(\\w+)\")?");
+          "Digest realm=\"([^\"\\x00-\\x08\\x0A-\\x1f\\x7f]+)\""
+              + ",\\s?(?:domain=\"(.+)\""
+              + ",\\s?)?nonce=\"([^\"\\x00-\\x08\\x0A-\\x1f\\x7f]+)\""
+              + "(?:,\\s?opaque=\"([^\"\\x00-\\x08\\x0A-\\x1f\\x7f]+)\")?");
   // WWW-Authenticate header pattern, see RFC2068 Section 11.1 and RFC2069.
   private static final Pattern WWW_AUTHENTICATION_HEADER_BASIC_PATTERN =
-      Pattern.compile("Basic realm=\"([\\w\\s@.]+)\"");
+      Pattern.compile("Basic realm=\"([^\"\\x00-\\x08\\x0A-\\x1f\\x7f]+)\"");
 
   private static final String RTSP_VERSION = "RTSP/1.0";
   private static final String LF = new String(new byte[] {Ascii.LF});
@@ -114,10 +114,15 @@ import java.util.regex.Pattern;
   /**
    * Serializes an {@link RtspRequest} to an {@link ImmutableList} of strings.
    *
+   * <p>The {@link RtspRequest} must include the {@link RtspHeaders#CSEQ} header, or this method
+   * throws {@link IllegalArgumentException}.
+   *
    * @param request The {@link RtspRequest}.
    * @return A list of the lines of the {@link RtspRequest}, without line terminators (CRLF).
    */
   public static ImmutableList<String> serializeRequest(RtspRequest request) {
+    checkArgument(request.headers.get(RtspHeaders.CSEQ) != null);
+
     ImmutableList.Builder<String> builder = new ImmutableList.Builder<>();
     // Request line.
     builder.add(
@@ -140,10 +145,15 @@ import java.util.regex.Pattern;
   /**
    * Serializes an {@link RtspResponse} to an {@link ImmutableList} of strings.
    *
+   * <p>The {@link RtspResponse} must include the {@link RtspHeaders#CSEQ} header, or this method
+   * throws {@link IllegalArgumentException}.
+   *
    * @param response The {@link RtspResponse}.
    * @return A list of the lines of the {@link RtspResponse}, without line terminators (CRLF).
    */
   public static ImmutableList<String> serializeResponse(RtspResponse response) {
+    checkArgument(response.headers.get(RtspHeaders.CSEQ) != null);
+
     ImmutableList.Builder<String> builder = new ImmutableList.Builder<>();
     // Request line.
     builder.add(
@@ -244,8 +254,7 @@ import java.util.regex.Pattern;
     }
   }
 
-  @RtspRequest.Method
-  private static int parseMethodString(String method) {
+  private static @RtspRequest.Method int parseMethodString(String method) {
     switch (method) {
       case "ANNOUNCE":
         return METHOD_ANNOUNCE;
@@ -327,6 +336,16 @@ import java.util.regex.Pattern;
         || STATUS_LINE_PATTERN.matcher(line).matches();
   }
 
+  /**
+   * Returns whether the RTSP message is an RTSP response.
+   *
+   * @param lines The non-empty list of received lines, with line terminators removed.
+   * @return Whether the lines represent an RTSP response.
+   */
+  public static boolean isRtspResponse(List<String> lines) {
+    return STATUS_LINE_PATTERN.matcher(lines.get(0)).matches();
+  }
+
   /** Returns the lines in an RTSP message body split by the line terminator used in body. */
   public static String[] splitRtspMessageBody(String body) {
     return Util.split(body, body.contains(CRLF) ? CRLF : LF);
@@ -347,7 +366,7 @@ import java.util.regex.Pattern;
         return C.LENGTH_UNSET;
       }
     } catch (NumberFormatException e) {
-      throw new ParserException(e);
+      throw ParserException.createForMalformedManifest(line, e);
     }
   }
 
@@ -386,7 +405,7 @@ import java.util.regex.Pattern;
   public static RtspSessionHeader parseSessionHeader(String headerValue) throws ParserException {
     Matcher matcher = SESSION_HEADER_PATTERN.matcher(headerValue);
     if (!matcher.matches()) {
-      throw new ParserException(headerValue);
+      throw ParserException.createForMalformedManifest(headerValue, /* cause= */ null);
     }
 
     String sessionId = checkNotNull(matcher.group(1));
@@ -397,7 +416,7 @@ import java.util.regex.Pattern;
       try {
         timeoutMs = Integer.parseInt(timeoutString) * C.MILLIS_PER_SECOND;
       } catch (NumberFormatException e) {
-        throw new ParserException(e);
+        throw ParserException.createForMalformedManifest(headerValue, e);
       }
     }
 
@@ -434,13 +453,33 @@ import java.util.regex.Pattern;
           /* nonce= */ "",
           /* opaque= */ "");
     }
-    throw new ParserException("Invalid WWW-Authenticate header " + headerValue);
+    throw ParserException.createForMalformedManifest(
+        "Invalid WWW-Authenticate header " + headerValue, /* cause= */ null);
+  }
+
+  /**
+   * Throws {@link ParserException#createForMalformedManifest ParserException} if {@code expression}
+   * evaluates to false.
+   *
+   * @param expression The expression to evaluate.
+   * @param message The error message.
+   * @throws ParserException If {@code expression} is false.
+   */
+  public static void checkManifestExpression(boolean expression, @Nullable String message)
+      throws ParserException {
+    if (!expression) {
+      throw ParserException.createForMalformedManifest(message, /* cause= */ null);
+    }
   }
 
   private static String getRtspStatusReasonPhrase(int statusCode) {
     switch (statusCode) {
       case 200:
         return "OK";
+      case 301:
+        return "Move Permanently";
+      case 302:
+        return "Move Temporarily";
       case 400:
         return "Bad Request";
       case 401:
@@ -476,7 +515,7 @@ import java.util.regex.Pattern;
     try {
       return Integer.parseInt(intString);
     } catch (NumberFormatException e) {
-      throw new ParserException(e);
+      throw ParserException.createForMalformedManifest(intString, e);
     }
   }
 
